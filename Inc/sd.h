@@ -1,0 +1,10 @@
+#ifndef SD_H
+#define SD_H
+
+#include <stdint.h>
+
+uint8_t SD_Init(void);
+uint8_t SD_WriteBlock(uint32_t block, uint8_t *data);
+uint8_t SD_ReadBlock(uint32_t block, uint8_t *data);
+
+#endif
