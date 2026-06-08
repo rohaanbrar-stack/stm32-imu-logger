@@ -45,7 +45,7 @@ int main(void)
     SPI_Init();
     sd_init_conf = SD_Init();
 
-    // Test sd card
+    // Test SD card
     if(sd_init_conf == 0x01) SSD1306_DrawString("NO CARD", 84, 2);
     else {
     	for(int i = 0; i < 512; i++) data[i] = i % 256;
