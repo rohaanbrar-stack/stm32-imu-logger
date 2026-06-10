@@ -7,6 +7,7 @@
 #define I2C_CR1       (*(volatile uint32_t*)0x40005400)
 #define I2C_CR2       (*(volatile uint32_t*)0x40005404)
 #define I2C_CCR       (*(volatile uint32_t*)0x4000541C)
+#define I2C_TRISE     (*(volatile uint32_t*)0x40005420)
 #define I2C_DR        (*(volatile uint32_t*)0x40005410)
 #define I2C_SR1       (*(volatile uint32_t*)0x40005414)
 #define I2C_SR2       (*(volatile uint32_t*)0x40005418)
@@ -22,12 +23,15 @@ void I2C_Init(void) {
 	GPIOB_CRL &= ~(0xF << 28); // Clear pin 7
 	GPIOB_CRL |= (0xE << 28); // Set pin 7 to alternate function open drain
 
-	// Setup I2C peripheral
+	// Setup I2C peripheral clock
 	I2C_CR1 &= ~(0x1); // Clear bit 0 to disable peripheral (required for CCR)
 	I2C_CR2 &= ~(0x3F); // Clear bits 5:0 for frequency
-	I2C_CR2 |= (0x08); // Set frequency to 8 MHz
+	I2C_CR2 |= (0x20); // Set frequency to 32 MHz
 	I2C_CCR &= ~(0xFFF); // Clear bits 11:0 for CCR
-	I2C_CCR |= (0x28); // Set clock to 100 kHZ SCL frequency
+	I2C_CCR |= (0x1A); // Set clock to 400 kHZ SCL frequency
+	I2C_CCR |= (0x1 << 15); // Set clock to fast mode
+	I2C_TRISE &= ~(0x1F); // Clear bits 5:0 for TRISE
+	I2C_TRISE |= (0xA); // Set fast mode
 	I2C_CR1 |= (0x1); // Set bit 0 to enable peripheral
 }
 

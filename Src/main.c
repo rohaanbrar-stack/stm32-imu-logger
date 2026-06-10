@@ -3,6 +3,8 @@
 #include "ssd1306.h"
 #include "spi.h"
 #include "sd.h"
+#include "timer.h"
+#include "clock.h"
 #include <stdint.h>
 #include <stdio.h>
 
@@ -18,6 +20,8 @@ int main(void)
     // Configure PC13 as output (push-pull, 2MHz)
     GPIOC_CRH &= ~(0xF << 20);
     GPIOC_CRH |=  (0x2 << 20);
+
+    clock_Init();
 
     // Declarations
     int16_t ax, ay, az, temp, gx, gy, gz; // Raw data
@@ -35,10 +39,12 @@ int main(void)
     uint8_t data[512]; // SD data block memory
     uint8_t data_read[512]; // SD data block read memory
     uint8_t sd_init_conf; // SD card confirmation
-    uint8_t sd_conf;
+    uint8_t sample_count;
     int pf = 0;
 
     // Initializations
+
+    TIM2_Init();
     I2C_Init();
     MPU6050_Init();
     SSD1306_Init();
@@ -54,16 +60,11 @@ int main(void)
     	int c = 0;
     	int d = 0;
     	uint8_t failed = 0;
-    	for(i = 0; i < 1953125 ; i = i + 1953) {
+    	for(i = 0; i < 1953125 ; i = i + 195312) {
     		for(int j = 0; j < 512; j++) {
     			data[j] = (i + j) % 256;
     		}
-    		sd_conf = SD_WriteBlock(i * 512, data);
-			SSD1306_Clear();
-    		sprintf(buffer, "i %lx: %x", (i / 1953), sd_conf);
-    		SSD1306_DrawString(buffer, 11, 2);
-    		SSD1306_Refresh();
-
+    		SD_WriteBlock(i * 512, data);
     		SD_ReadBlock(i * 512, data_read);
     		for(int k = 0; k < 512; k++) {
     		    if(data_read[k] != data[k]) {
@@ -80,9 +81,7 @@ int main(void)
     		if(failed == 1) break;
     		SPI_Transfer(0xFF);
     	}
-    	sprintf(buffer, "d: %x", d);
-    	SSD1306_DrawString(buffer, 2, 2);
-        if(d == 1000) SSD1306_DrawString("PASS", 102, 2);
+        if(d == 10) SSD1306_DrawString("PASS", 102, 2);
     }
     else SSD1306_DrawString("MEGAFAIL", 2, 2);
     SSD1306_Refresh();
@@ -103,47 +102,58 @@ int main(void)
 
     // Program loop
     while(1) {
-    	MPU6050_Read(&ax, &ay, &az, &temp, &gx, &gy, &gz); // Read sensor inputs from MPU6050
+    	if(sample_flag) {
+    		MPU6050_Read(&ax, &ay, &az, &temp, &gx, &gy, &gz); // Read sensor inputs from MPU6050
 
-    	// Unit conversions and bias calibration
-    	ax_g = (float)ax / 16384.0;
-    	ay_g = (float)ay / 16384.0;
-    	az_g = (float)az / 16384.0;
-    	gx_dps = ((float)gx - gx_cal) / 131.0;
-    	gy_dps = ((float)gy - gy_cal) / 131.0;
-    	gz_dps = ((float)gz - gz_cal) / 131.0;
-    	temp_c = (float)temp / 340.0 + 36.56;
+    		// Unit conversions and bias calibration
+    		ax_g = (float)ax / 16384.0;
+    		ay_g = (float)ay / 16384.0;
+    		az_g = (float)az / 16384.0;
+    		gx_dps = ((float)gx - gx_cal) / 131.0;
+    		gy_dps = ((float)gy - gy_cal) / 131.0;
+    		gz_dps = ((float)gz - gz_cal) / 131.0;
+    		temp_c = (float)temp / 340.0 + 36.56;
 
-    	// Sensor data cleaning (low-pass filter)
-    	ax_f = 0.1 * ax_g + (1 - 0.1) * ax_f;
-    	ay_f = 0.1 * ay_g + (1 - 0.1) * ay_f;
-    	az_f = 0.1 * az_g + (1 - 0.1) * az_f;
-    	gx_f = 0.1 * gx_dps + (1 - 0.1) * gx_f;
-    	gy_f = 0.1 * gy_dps + (1 - 0.1) * gy_f;
-    	gz_f = 0.1 * gz_dps + (1 - 0.1) * gz_f;
+    		// Sensor data cleaning (low-pass filter)
+    		ax_f = 0.1 * ax_g + (1 - 0.1) * ax_f;
+    		ay_f = 0.1 * ay_g + (1 - 0.1) * ay_f;
+    		az_f = 0.1 * az_g + (1 - 0.1) * az_f;
+    		gx_f = 0.1 * gx_dps + (1 - 0.1) * gx_f;
+    		gy_f = 0.1 * gy_dps + (1 - 0.1) * gy_f;
+    		gz_f = 0.1 * gz_dps + (1 - 0.1) * gz_f;
 
-    	SSD1306_Clear(); // Clear SSD1306
+    		SSD1306_Clear(); // Clear SSD1306
 
-    	// Store and set sensor values on SSD1306
-    	sprintf(buffer, "AX: %.3f g", ax_f);
-    	SSD1306_DrawString(buffer, 2, 2);
-    	sprintf(buffer, "AY: %.3f g", ay_f);
-    	SSD1306_DrawString(buffer, 2, 11);
-    	sprintf(buffer, "AZ: %.3f g", az_f);
-    	SSD1306_DrawString(buffer, 2, 20);
-    	sprintf(buffer, "GX: %.3f deg", gx_f);
-    	SSD1306_DrawString(buffer, 2, 29);
-    	sprintf(buffer, "GY: %.3f deg", gy_f);
-    	SSD1306_DrawString(buffer, 2, 38);
-    	sprintf(buffer, "GZ: %.3f deg", gz_f);
-    	SSD1306_DrawString(buffer, 2, 47);
-    	sprintf(buffer, "Temp: %.3f C", temp_c);
-    	SSD1306_DrawString(buffer, 2, 56);
+    		// Store and set sensor values on SSD1306
+    		sprintf(buffer, "AX: %.3f g", ax_f);
+    		SSD1306_DrawString(buffer, 2, 2);
+    		sprintf(buffer, "AY: %.3f g", ay_f);
+    		SSD1306_DrawString(buffer, 2, 11);
+    		sprintf(buffer, "AZ: %.3f g", az_f);
+    		SSD1306_DrawString(buffer, 2, 20);
+    		sprintf(buffer, "GX: %.3f deg", gx_f);
+    		SSD1306_DrawString(buffer, 2, 29);
+    		sprintf(buffer, "GY: %.3f deg", gy_f);
+    		SSD1306_DrawString(buffer, 2, 38);
+    		sprintf(buffer, "GZ: %.3f deg", gz_f);
+    		SSD1306_DrawString(buffer, 2, 47);
+    		sprintf(buffer, "Temp: %.3f C", temp_c);
+    		SSD1306_DrawString(buffer, 2, 56);
 
-    	if(pf == 1) SSD1306_DrawString("FAIL", 102, 2);
-    	else SSD1306_DrawString("PASS", 102, 2);
+    		if(pf == 1) SSD1306_DrawString("FAIL", 102, 2);
+    		else SSD1306_DrawString("PASS", 102, 2);
 
-    	SSD1306_Refresh(); // Refresh screen to display string
+    		sample_count++;
+    		if(sample_count == 100) {
+    			sprintf(buffer, "%x Hz", sample_count);
+    			SSD1306_DrawString(buffer, 102, 11);
+    			sample_count = 0;
+    		}
+
+    		SSD1306_Refresh(); // Refresh screen to display string
+
+    		sample_flag = 0; // Reset TIM2 timer flag
+    	}
     }
 }
 
