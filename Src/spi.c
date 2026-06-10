@@ -26,13 +26,16 @@ void SPI_Init(void) {
 	// Setup SPI peripheral
 	SPI1_CR1 |= (1 << 2); // Set SPI to master mode
 	SPI1_CR1 &= ~(0x7 << 3); // Clear bits 5:3 for baud (clock) rate
+	SPI1_CR1 |= (0x7 << 3); // Set baud rate to 281 kHz
+	SPI1_CR1 |= (0x3 << 8); // Ignore NSS pin
 	SPI1_CR1 |= (1 << 6); // Set bit 6 to enable SPI
 }
 
 uint8_t SPI_Transfer(uint8_t data) {
 	for(int i = 0; i < 100000; i++) if(SPI1_SR & (1 << 1)) break; // Waits until status bit is set by hardware
 	SPI1_DR = (data); // Writes data to SPI data register for MOSI
-	for(int i = 0; i < 100000; i++) if(SPI1_SR & (1)) break; // Waits until status bit is set by hardware
+	int i;
+	for(i = 0; i < 100000; i++) if(SPI1_SR & (1)) break; // Waits until status bit is set by hardware
 	uint8_t input = SPI1_DR; // Reads byte from MISO
 	return input; // Returns byte
 }

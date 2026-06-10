@@ -46,16 +46,20 @@ int main(void)
     sd_init_conf = SD_Init();
 
     // Test SD card
-    if(sd_init_conf == 0x01) SSD1306_DrawString("NO CARD", 84, 2);
-    else {
-    	for(int i = 0; i < 512; i++) data[i] = i % 256;
+    SSD1306_Clear();
+    if(sd_init_conf == 0x00) {
+    	int i;
+    	for(i = 0; i < 512; i++) data[i] = i % 256;
         SD_WriteBlock(0, data);
+
         SD_ReadBlock(0, data_read);
         int c = 0;
+
         for(int i = 0; i < 512; i++) {
             if(data_read[i] != data[i]) {
             	SSD1306_DrawString("FAIL", 102, 2);
             	break;
+
             }
             else c++;
         }

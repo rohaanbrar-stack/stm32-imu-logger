@@ -57,3 +57,4 @@ Release/
 .settings/
 *.launch
 .cproject.user
+/.settings

@@ -1,6 +1,7 @@
 #include "sd.h"
 #include "spi.h"
 #include <stdint.h>
+#include <stdio.h>
 
 void SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc) {
 	// arg byte splitting
@@ -15,6 +16,7 @@ void SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc) {
 	SPI_Transfer(byte_3); //
 	SPI_Transfer(byte_4); // -- Send command arg --
 	SPI_Transfer(crc); // Send CRC
+	for(int i = 0; i < 100000; i++) if(!(SPI1_SR & (1 << 7))) break; // Waits until status bit is set by hardware
 }
 
 uint8_t SD_ReadResponse() {
@@ -41,6 +43,7 @@ uint8_t SD_Init(void) {
 	SD_SendCommand(0, 0x00000000, 0x95);
 	uint8_t response = SD_ReadResponse();
 	if(response != 0x01) return 0x01; // Error handling
+	SPI_Transfer(0xFF);
 	SPI_CS_High();
 
 	// Send CMD8
@@ -52,19 +55,22 @@ uint8_t SD_Init(void) {
 	(void)SD_ReadResponse();
 	(void)SD_ReadResponse();
 	(void)SD_ReadResponse();
+	SPI_Transfer(0xFF);
 	SPI_CS_High();
 
 	// Send CMD55 and ACMD41 until response is 0x00
-	for(int i = 0; i < 100; i++) {
+	for(int i = 0; i < 1000; i++) {
 		SPI_CS_Low();
 		SD_SendCommand(55, 0x00000000, 0xFF);
 		response = SD_ReadResponse();
+		SPI_Transfer(0xFF);
 		SPI_CS_High();
 		SPI_CS_Low();
 		SD_SendCommand(41, 0x40000000, 0xFF);
 		response = SD_ReadResponse();
-		if(response == 0x00) return 0x00;
+		SPI_Transfer(0xFF);
 		SPI_CS_High();
+		if(response == 0x00) return 0x00;
 	}
 	return 0x01; // Timeout
 }
@@ -86,6 +92,7 @@ uint8_t SD_WriteBlock(uint32_t block, uint8_t *data) {
 	response = SD_ReadResponse();
 	if((response & 0x1F) != 0x05) return 0x01; // Error handling
 	while(SPI_Transfer(0xFF) == 0x00);
+	SPI_Transfer(0xFF);
 	SPI_CS_High();
 	return 0x00;
 }
