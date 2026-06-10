@@ -91,7 +91,10 @@ uint8_t SD_WriteBlock(uint32_t block, uint8_t *data) {
 	// Check data was accepted
 	response = SD_ReadResponse();
 	if((response & 0x1F) != 0x05) return 0x01; // Error handling
-	while(SPI_Transfer(0xFF) == 0x00);
+	for(int i = 0; i < 1000; i++) {
+		if(SPI_Transfer(0xFF) != 0x00) break;
+		else if(i == 999) return 0x01;
+	}
 	SPI_Transfer(0xFF);
 	SPI_CS_High();
 	return 0x00;
@@ -105,7 +108,10 @@ uint8_t SD_ReadBlock(uint32_t block, uint8_t *data) {
 	if(response != 0x00) return 0x01; // Error handling
 
 	// Transfer data from block
-	while(SPI_Transfer(0xFF) != 0xFE);
+	for(int i = 0; i < 1000; i++) {
+		if(SPI_Transfer(0xFF) == 0xFE) break;
+		else if(i == 999) return 0x01;
+	}
 	for(int i = 0; i < 512; i++) data[i] = SPI_Transfer(0xFF);
 	SPI_Transfer(0xFF);
 	SPI_Transfer(0xFF);

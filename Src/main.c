@@ -35,6 +35,8 @@ int main(void)
     uint8_t data[512]; // SD data block memory
     uint8_t data_read[512]; // SD data block read memory
     uint8_t sd_init_conf; // SD card confirmation
+    uint8_t sd_conf;
+    int pf = 0;
 
     // Initializations
     I2C_Init();
@@ -48,23 +50,41 @@ int main(void)
     // Test SD card
     SSD1306_Clear();
     if(sd_init_conf == 0x00) {
-    	int i;
-    	for(i = 0; i < 512; i++) data[i] = i % 256;
-        SD_WriteBlock(0, data);
+    	uint32_t i;
+    	int c = 0;
+    	int d = 0;
+    	uint8_t failed = 0;
+    	for(i = 0; i < 1953125 ; i = i + 1953) {
+    		for(int j = 0; j < 512; j++) {
+    			data[j] = (i + j) % 256;
+    		}
+    		sd_conf = SD_WriteBlock(i * 512, data);
+			SSD1306_Clear();
+    		sprintf(buffer, "i %lx: %x", (i / 1953), sd_conf);
+    		SSD1306_DrawString(buffer, 11, 2);
+    		SSD1306_Refresh();
 
-        SD_ReadBlock(0, data_read);
-        int c = 0;
-
-        for(int i = 0; i < 512; i++) {
-            if(data_read[i] != data[i]) {
-            	SSD1306_DrawString("FAIL", 102, 2);
-            	break;
-
-            }
-            else c++;
-        }
-        if(c == 512) SSD1306_DrawString("PASS", 102, 2);
+    		SD_ReadBlock(i * 512, data_read);
+    		for(int k = 0; k < 512; k++) {
+    		    if(data_read[k] != data[k]) {
+    		    	pf = 1;
+    		    	SSD1306_DrawString("FAIL", 102, 2);
+    		       	sprintf(buffer, "i: %lx", i);
+    		       	SSD1306_DrawString(buffer, 2, 2);
+    		       	failed = 1;
+    		        break;
+    		    }
+    		    else c++;
+    	    }
+    		if(c == 512) { d++; c = 0; }
+    		if(failed == 1) break;
+    		SPI_Transfer(0xFF);
+    	}
+    	sprintf(buffer, "d: %x", d);
+    	SSD1306_DrawString(buffer, 2, 2);
+        if(d == 1000) SSD1306_DrawString("PASS", 102, 2);
     }
+    else SSD1306_DrawString("MEGAFAIL", 2, 2);
     SSD1306_Refresh();
 
     // Gyro drift calibration
@@ -119,6 +139,9 @@ int main(void)
     	SSD1306_DrawString(buffer, 2, 47);
     	sprintf(buffer, "Temp: %.3f C", temp_c);
     	SSD1306_DrawString(buffer, 2, 56);
+
+    	if(pf == 1) SSD1306_DrawString("FAIL", 102, 2);
+    	else SSD1306_DrawString("PASS", 102, 2);
 
     	SSD1306_Refresh(); // Refresh screen to display string
     }
