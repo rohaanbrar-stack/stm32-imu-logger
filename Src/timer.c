@@ -14,7 +14,7 @@ volatile uint8_t sample_flag;
 void TIM2_Init(void) {
 	RCC_APB1ENR |= (1); // Enable TIM2 clock
 	TIM2_PSC &= ~(0xFFFF); // Clear prescaler
-	TIM2_PSC |= (0x9C3F); // Set prescaler to 39999
+	TIM2_PSC |= (0x57E3); // Set prescaler to 22499
 	TIM2_ARR &= ~(0xFFFF); // Clear auto reload
 	TIM2_ARR |= (0xF); // Set auto reload to 15 (sets clock rate to 100 Hz)
 	TIM2_DIER |= (0x1); // Enable update interrupt

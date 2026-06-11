@@ -8,12 +8,11 @@
 
 void clock_Init(void) {
 	FLASH_ACR &= ~(0x7); // Clear bits 2:0
-	FLASH_ACR |= (0x2); // Set Flash latency to 2 states
+	FLASH_ACR |= (0x1); // Set Flash latency to 1 state
 	FLASH_ACR |= (0x1 << 4); // Enable prefetch
 	RCC_CFGR &= ~(0xF << 18); // Clear bits 21:18
-	RCC_CFGR |= (0xF << 18); // Set PLLMUL to 9x
+	RCC_CFGR |= (0x7 << 18); // Set PLLMUL to 9x
 	RCC_CFGR &= ~(0x7 << 8); // Clear bits 10:8
-	RCC_CFGR |= (0x1 << 10); // Set PPRE1 to 100
 	RCC_CR |= (0x1 << 24); // Enable PLL
 	while(!(RCC_CR & (0x1 << 25))); // Wait for PLL to be ready
 	RCC_CFGR &= ~(0x3); // Clear bits 1:0

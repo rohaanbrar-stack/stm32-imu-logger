@@ -122,35 +122,35 @@ int main(void)
     		gy_f = 0.1 * gy_dps + (1 - 0.1) * gy_f;
     		gz_f = 0.1 * gz_dps + (1 - 0.1) * gz_f;
 
-    		SSD1306_Clear(); // Clear SSD1306
-
-    		// Store and set sensor values on SSD1306
-    		sprintf(buffer, "AX: %.3f g", ax_f);
-    		SSD1306_DrawString(buffer, 2, 2);
-    		sprintf(buffer, "AY: %.3f g", ay_f);
-    		SSD1306_DrawString(buffer, 2, 11);
-    		sprintf(buffer, "AZ: %.3f g", az_f);
-    		SSD1306_DrawString(buffer, 2, 20);
-    		sprintf(buffer, "GX: %.3f deg", gx_f);
-    		SSD1306_DrawString(buffer, 2, 29);
-    		sprintf(buffer, "GY: %.3f deg", gy_f);
-    		SSD1306_DrawString(buffer, 2, 38);
-    		sprintf(buffer, "GZ: %.3f deg", gz_f);
-    		SSD1306_DrawString(buffer, 2, 47);
-    		sprintf(buffer, "Temp: %.3f C", temp_c);
-    		SSD1306_DrawString(buffer, 2, 56);
-
-    		if(pf == 1) SSD1306_DrawString("FAIL", 102, 2);
-    		else SSD1306_DrawString("PASS", 102, 2);
-
     		sample_count++;
     		if(sample_count == 100) {
-    			sprintf(buffer, "%x Hz", sample_count);
-    			SSD1306_DrawString(buffer, 102, 11);
     			sample_count = 0;
+    			GPIOC_ODR ^= (1 << 13);
     		}
 
-    		SSD1306_Refresh(); // Refresh screen to display string
+    		if(sample_count % 50 == 0) {
+    			SSD1306_Clear(); // Clear SSD1306
+
+    			// Store and set sensor values on SSD1306
+    			sprintf(buffer, "AX: %.3f g", ax_f);
+    			SSD1306_DrawString(buffer, 2, 2);
+    			sprintf(buffer, "AY: %.3f g", ay_f);
+    			SSD1306_DrawString(buffer, 2, 11);
+    			sprintf(buffer, "AZ: %.3f g", az_f);
+    			SSD1306_DrawString(buffer, 2, 20);
+    			sprintf(buffer, "GX: %.3f deg", gx_f);
+    			SSD1306_DrawString(buffer, 2, 29);
+    			sprintf(buffer, "GY: %.3f deg", gy_f);
+    			SSD1306_DrawString(buffer, 2, 38);
+    			sprintf(buffer, "GZ: %.3f deg", gz_f);
+    			SSD1306_DrawString(buffer, 2, 47);
+    			sprintf(buffer, "Temp: %.3f C", temp_c);
+    			SSD1306_DrawString(buffer, 2, 56);
+
+    			if(pf == 1) SSD1306_DrawString("FAIL", 102, 2);
+    			else SSD1306_DrawString("PASS", 102, 2);
+    			SSD1306_Refresh(); // Refresh screen to display string
+    		}
 
     		sample_flag = 0; // Reset TIM2 timer flag
     	}
