@@ -50,5 +50,5 @@ void MPU6050_Read(int16_t *ax, int16_t *ay, int16_t *az, int16_t *temp, int16_t 
 }
 
 float MPU6050_GetMagnitude(int16_t ax, int16_t ay, int16_t az) {
-	return sqrt(ax * ax + ay * ay + az * az);
+	return sqrt((float)ax * ax + (float)ay * ay + (float)az * az);
 }

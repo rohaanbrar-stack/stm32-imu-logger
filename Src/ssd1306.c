@@ -165,6 +165,8 @@ void SSD1306_Init(void) {
 }
 
 void SSD1306_SetPixel(uint8_t x, uint8_t y) {
+	if(x > 128) x = 128;
+	if(y > 64) y = 64;
 	uint16_t byte = ((y / 8) * 128) + x; // Calculate byte location
 	uint16_t bitOffset = y % 8; // Calculate bit location in byte
 	framebuffer[byte] |= (0x1 << bitOffset); // Set bit in specified byte

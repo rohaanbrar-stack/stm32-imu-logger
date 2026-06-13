@@ -2,7 +2,6 @@
 #define SSD1306_H
 
 #include <stdint.h>
-#include <math.h>
 
 void SSD1306_Init(void);
 void SSD1306_SetPixel(uint8_t x, uint8_t y);

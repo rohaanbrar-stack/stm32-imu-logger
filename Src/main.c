@@ -23,6 +23,7 @@ int main(void)
 
     clock_Init();
 
+
     // Declarations
     int16_t ax, ay, az, temp, gx, gy, gz; // Raw data
     float gx_cal = 0.0; // -- Calibrated data --
@@ -39,40 +40,60 @@ int main(void)
     uint8_t data[512]; // SD data block memory
     uint8_t data_read[512]; // SD data block read memory
     uint8_t sd_init_conf; // SD card confirmation
-    uint8_t sample_count;
-    int pf = 0;
+    uint8_t sd_write_conf; // SD card confirmation
+    uint8_t sample_count = 0; // Clock IRQ flag
+    uint32_t sample_time; // Timestamp
+    int pf = 0; // SD test pass/fail
 
     // Initializations
 
     TIM2_Init();
+    SPI_Init();
+    for(int i = 0; i < 100000; i++);
+    sd_init_conf = SD_Init();
     I2C_Init();
     MPU6050_Init();
     SSD1306_Init();
     SSD1306_Clear();
     SSD1306_Refresh();
-    SPI_Init();
-    sd_init_conf = SD_Init();
+
+
+
 
     // Test SD card
     SSD1306_Clear();
+    SD_ReadBlock(195312 * 512, data_read);
+    sprintf(buffer, "read_pre: %x", data_read[0]);
+    SSD1306_DrawString(buffer, 2, 47);
     if(sd_init_conf == 0x00) {
     	uint32_t i;
     	int c = 0;
     	int d = 0;
     	uint8_t failed = 0;
-    	for(i = 0; i < 1953125 ; i = i + 195312) {
+    	for(i = 195312; i < 1953125 ; i = i + 195312) {
     		for(int j = 0; j < 512; j++) {
     			data[j] = (i + j) % 256;
     		}
-    		SD_WriteBlock(i * 512, data);
-    		SD_ReadBlock(i * 512, data_read);
+    		sd_write_conf = SD_WriteBlock(i, data);
+    		SPI_Transfer(0xFF);
+    		SD_ReadBlock(i, data_read);
+    		SPI_Transfer(0xFF);
     		for(int k = 0; k < 512; k++) {
     		    if(data_read[k] != data[k]) {
     		    	pf = 1;
     		    	SSD1306_DrawString("FAIL", 102, 2);
     		       	sprintf(buffer, "i: %lx", i);
     		       	SSD1306_DrawString(buffer, 2, 2);
+    		       	if(sd_write_conf == 0x04) SSD1306_DrawString("LOOP", 2, 11);
     		       	failed = 1;
+    		       	sprintf(buffer, "k: %x", k);
+    		       	SSD1306_DrawString(buffer, 2, 20);
+    		       	sprintf(buffer, "data: %x", data[k]);
+    		       	SSD1306_DrawString(buffer, 2, 29);
+    		       	sprintf(buffer, "data_read: %x", data_read[k]);
+    		       	SSD1306_DrawString(buffer, 2, 38);
+					sprintf(buffer, "cmd24: %x", last_cmd24_response);
+					SSD1306_DrawString(buffer, 2, 47);
     		        break;
     		    }
     		    else c++;
@@ -83,7 +104,10 @@ int main(void)
     	}
         if(d == 10) SSD1306_DrawString("PASS", 102, 2);
     }
-    else SSD1306_DrawString("MEGAFAIL", 2, 2);
+    else if(sd_init_conf == 0x01) SSD1306_DrawString("MEGAFAIL 1", 2, 2);
+    else if(sd_init_conf == 0x02) SSD1306_DrawString("MEGAFAIL 2", 2, 2);
+    else if(sd_init_conf == 0x03) SSD1306_DrawString("MEGAFAIL 3V1", 2, 2);
+    else if(sd_init_conf == 0x04) SSD1306_DrawString("MEGAFAIL 3V2", 2, 2);
     SSD1306_Refresh();
 
     // Gyro drift calibration
@@ -103,6 +127,8 @@ int main(void)
     // Program loop
     while(1) {
     	if(sample_flag) {
+    		sample_flag = 0; // Reset TIM2 timer flag
+    		sample_time = timestamp;
     		MPU6050_Read(&ax, &ay, &az, &temp, &gx, &gy, &gz); // Read sensor inputs from MPU6050
 
     		// Unit conversions and bias calibration
@@ -147,12 +173,13 @@ int main(void)
     			sprintf(buffer, "Temp: %.3f C", temp_c);
     			SSD1306_DrawString(buffer, 2, 56);
 
+    			sprintf(buffer, "T:%lu", sample_time);
+    			SSD1306_DrawString(buffer, 82, 11);
+
     			if(pf == 1) SSD1306_DrawString("FAIL", 102, 2);
     			else SSD1306_DrawString("PASS", 102, 2);
     			SSD1306_Refresh(); // Refresh screen to display string
     		}
-
-    		sample_flag = 0; // Reset TIM2 timer flag
     	}
     }
 }

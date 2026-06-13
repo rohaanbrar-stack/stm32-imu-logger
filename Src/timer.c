@@ -10,6 +10,7 @@
 #define TIM2_SR       (*(volatile uint32_t*)0x40000010)
 
 volatile uint8_t sample_flag;
+volatile uint32_t timestamp;
 
 void TIM2_Init(void) {
 	RCC_APB1ENR |= (1); // Enable TIM2 clock
@@ -24,5 +25,6 @@ void TIM2_Init(void) {
 
 void TIM2_IRQHandler(void) {
 	TIM2_SR &= ~(0x1); // Clear update interrupt flag
-	sample_flag = 1;
+	sample_flag = 1; // Set timer variable
+	timestamp++; // 10 ms per IRQ
 }
