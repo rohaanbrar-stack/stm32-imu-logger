@@ -7,6 +7,7 @@
 #include "clock.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <math.h>
 
 #define RCC_APB2ENR   (*(volatile uint32_t*)0x40021018)
 #define GPIOC_CRH     (*(volatile uint32_t*)0x40011004)
@@ -36,6 +37,13 @@ int main(void)
     float gx_f = 0.0; //
     float gy_f = 0.0; //
     float gz_f = 0.0; // -- Cleaned data --
+    float roll = 0.0;
+    float pitch = 0.0;
+    uint8_t first_sample = 1; // Confirms first sample
+    uint32_t prev_sample_time = 0; // Previous sample time for dt calc
+    uint32_t last_timestamp; // Last timestamp for Hz update
+    float dt; // Delta for roll/pitch update
+    float hz = 0.0; // Hz refresh rate
     char buffer[20]; // String array memory
     uint8_t data[512]; // SD data block memory
     uint8_t data_read[512]; // SD data block read memory
@@ -124,11 +132,14 @@ int main(void)
     gy_cal /= 1000.0;
     gz_cal /= 1000.0;
 
+    last_timestamp = timestamp; // Initialize last timestamp for initial value
+
     // Program loop
     while(1) {
     	if(sample_flag) {
     		sample_flag = 0; // Reset TIM2 timer flag
-    		sample_time = timestamp;
+    		sample_time = timestamp; // Timestamp counter
+    		dt = (sample_time - prev_sample_time) * 0.01; // Delta calculation
     		MPU6050_Read(&ax, &ay, &az, &temp, &gx, &gy, &gz); // Read sensor inputs from MPU6050
 
     		// Unit conversions and bias calibration
@@ -148,33 +159,35 @@ int main(void)
     		gy_f = 0.1 * gy_dps + (1 - 0.1) * gy_f;
     		gz_f = 0.1 * gz_dps + (1 - 0.1) * gz_f;
 
+    		// Roll and pitch calculations
+    		if(!first_sample) {
+    			roll += gx_f * dt;
+    			roll = 0.98 * (roll) + 0.02 * (atan2(ay_f, az_f) * 180.0 / M_PI);
+    			pitch += gy_f * dt;
+    			pitch = 0.98 * (pitch) + 0.02 * (atan2(ax_f, az_f) * 180.0 / M_PI);
+    		} else first_sample = 0; // Omit first sample (no prev sample for dt)
+    		prev_sample_time = sample_time; // Set prev sample for dt
+
+    		// Hz display
     		sample_count++;
     		if(sample_count == 100) {
     			sample_count = 0;
-    			GPIOC_ODR ^= (1 << 13);
+    			hz = 10000.0 / (timestamp - last_timestamp);
+    			last_timestamp = timestamp;
     		}
 
     		if(sample_count % 50 == 0) {
     			SSD1306_Clear(); // Clear SSD1306
 
     			// Store and set sensor values on SSD1306
-    			sprintf(buffer, "AX: %.3f g", ax_f);
+    			sprintf(buffer, "Roll: %.3f deg", roll);
     			SSD1306_DrawString(buffer, 2, 2);
-    			sprintf(buffer, "AY: %.3f g", ay_f);
+    			sprintf(buffer, "Pitch: %.3f deg", pitch);
     			SSD1306_DrawString(buffer, 2, 11);
-    			sprintf(buffer, "AZ: %.3f g", az_f);
+    			sprintf(buffer, "Hz: %.0f Hz", hz);
     			SSD1306_DrawString(buffer, 2, 20);
-    			sprintf(buffer, "GX: %.3f deg", gx_f);
-    			SSD1306_DrawString(buffer, 2, 29);
-    			sprintf(buffer, "GY: %.3f deg", gy_f);
-    			SSD1306_DrawString(buffer, 2, 38);
-    			sprintf(buffer, "GZ: %.3f deg", gz_f);
-    			SSD1306_DrawString(buffer, 2, 47);
     			sprintf(buffer, "Temp: %.3f C", temp_c);
-    			SSD1306_DrawString(buffer, 2, 56);
-
-    			sprintf(buffer, "T:%lu", sample_time);
-    			SSD1306_DrawString(buffer, 82, 11);
+    			SSD1306_DrawString(buffer, 2, 29);
 
     			if(pf == 1) SSD1306_DrawString("FAIL", 102, 2);
     			else SSD1306_DrawString("PASS", 102, 2);
