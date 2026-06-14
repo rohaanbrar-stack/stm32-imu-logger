@@ -24,7 +24,6 @@ int main(void)
 
     clock_Init();
 
-
     // Declarations
     int16_t ax, ay, az, temp, gx, gy, gz; // Raw data
     float gx_cal = 0.0; // -- Calibrated data --
@@ -37,8 +36,8 @@ int main(void)
     float gx_f = 0.0; //
     float gy_f = 0.0; //
     float gz_f = 0.0; // -- Cleaned data --
-    float roll = 0.0;
-    float pitch = 0.0;
+    float roll = 0.0; // Roll
+    float pitch = 0.0; // Pitch
     uint8_t first_sample = 1; // Confirms first sample
     uint32_t prev_sample_time = 0; // Previous sample time for dt calc
     uint32_t last_timestamp; // Last timestamp for Hz update
@@ -54,7 +53,6 @@ int main(void)
     int pf = 0; // SD test pass/fail
 
     // Initializations
-
     TIM2_Init();
     SPI_Init();
     for(int i = 0; i < 100000; i++);
@@ -64,9 +62,6 @@ int main(void)
     SSD1306_Init();
     SSD1306_Clear();
     SSD1306_Refresh();
-
-
-
 
     // Test SD card
     SSD1306_Clear();
@@ -177,7 +172,7 @@ int main(void)
     		}
 
     		if(sample_count % 50 == 0) {
-    			SSD1306_Clear(); // Clear SSD1306
+    			SSD1306_Clear(); // Clear SSD1306 every 50 clock ticks
 
     			// Store and set sensor values on SSD1306
     			sprintf(buffer, "Roll: %.3f deg", roll);
@@ -189,8 +184,8 @@ int main(void)
     			sprintf(buffer, "Temp: %.3f C", temp_c);
     			SSD1306_DrawString(buffer, 2, 29);
 
-    			if(pf == 1) SSD1306_DrawString("FAIL", 102, 2);
-    			else SSD1306_DrawString("PASS", 102, 2);
+    			if(pf == 1) SSD1306_DrawString("FAIL", 102, 54);
+    			else SSD1306_DrawString("PASS", 102, 54);
     			SSD1306_Refresh(); // Refresh screen to display string
     		}
     	}
