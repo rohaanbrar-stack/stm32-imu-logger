@@ -5,6 +5,7 @@
 #include "sd.h"
 #include "timer.h"
 #include "clock.h"
+#include "usart.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
@@ -43,7 +44,7 @@ int main(void)
     uint32_t last_timestamp; // Last timestamp for Hz update
     float dt; // Delta for roll/pitch update
     float hz = 0.0; // Hz refresh rate
-    char buffer[20]; // String array memory
+    char buffer[80]; // String array memory
     uint8_t data[512]; // SD data block memory
     uint8_t data_read[512]; // SD data block read memory
     uint8_t sd_init_conf; // SD card confirmation
@@ -58,6 +59,7 @@ int main(void)
     for(int i = 0; i < 100000; i++);
     sd_init_conf = SD_Init();
     I2C_Init();
+    USART_Init();
     MPU6050_Init();
     SSD1306_Init();
     SSD1306_Clear();
@@ -169,6 +171,14 @@ int main(void)
     			sample_count = 0;
     			hz = 10000.0 / (timestamp - last_timestamp);
     			last_timestamp = timestamp;
+    		}
+
+    		// USART write
+    		if(sample_count % 5 == 0) {
+    			sprintf(buffer, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\r\n", ax_f, ay_f, az_f, gx_f, gy_f, gz_f, roll, pitch, temp_c);
+    			for(int i = 0; buffer[i] != '\0'; i++) {
+    				USART_WriteByte(buffer[i]);
+    			}
     		}
 
     		if(sample_count % 50 == 0) {
