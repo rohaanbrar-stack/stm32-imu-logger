@@ -49,6 +49,7 @@ int main(void)
     uint8_t data_read[512]; // SD data block read memory
     uint8_t sd_init_conf; // SD card confirmation
     uint8_t sd_write_conf; // SD card confirmation
+    uint8_t sd_read_conf; // SD card confirmation
     uint8_t sample_count = 0; // Clock IRQ flag
     uint32_t sample_time; // Timestamp
     int pf = 0; // SD test pass/fail
@@ -67,9 +68,9 @@ int main(void)
 
     // Test SD card
     SSD1306_Clear();
-    SD_ReadBlock(195312 * 512, data_read);
+    SD_ReadBlock(195312, data_read);
     sprintf(buffer, "read_pre: %x", data_read[0]);
-    SSD1306_DrawString(buffer, 2, 47);
+    SSD1306_DrawString(buffer, 2, 56);
     if(sd_init_conf == 0x00) {
     	uint32_t i;
     	int c = 0;
@@ -80,8 +81,8 @@ int main(void)
     			data[j] = (i + j) % 256;
     		}
     		sd_write_conf = SD_WriteBlock(i, data);
-    		SPI_Transfer(0xFF);
-    		SD_ReadBlock(i, data_read);
+    		for(int l = 0; l < 10; l++) SPI_Transfer(0xFF);
+    		sd_read_conf = SD_ReadBlock(i, data_read);
     		SPI_Transfer(0xFF);
     		for(int k = 0; k < 512; k++) {
     		    if(data_read[k] != data[k]) {
@@ -89,7 +90,11 @@ int main(void)
     		    	SSD1306_DrawString("FAIL", 102, 2);
     		       	sprintf(buffer, "i: %lx", i);
     		       	SSD1306_DrawString(buffer, 2, 2);
-    		       	if(sd_write_conf == 0x04) SSD1306_DrawString("LOOP", 2, 11);
+    		       	if(sd_write_conf == 0x04) SSD1306_DrawString("LOOP 1", 2, 11);
+    		       	if(sd_write_conf == 0x01) SSD1306_DrawString("LOOP 2", 2, 11);
+    		       	if(sd_write_conf == 0x02) SSD1306_DrawString("LOOP 3", 2, 11);
+    		       	if(sd_read_conf == 0x01) SSD1306_DrawString("READ 1", 64, 11);
+    		       	if(sd_read_conf == 0x02) SSD1306_DrawString("READ 2", 64, 11);
     		       	failed = 1;
     		       	sprintf(buffer, "k: %x", k);
     		       	SSD1306_DrawString(buffer, 2, 20);
@@ -99,6 +104,8 @@ int main(void)
     		       	SSD1306_DrawString(buffer, 2, 38);
 					sprintf(buffer, "cmd24: %x", last_cmd24_response);
 					SSD1306_DrawString(buffer, 2, 47);
+					sprintf(buffer, "W_R: %x", write_response);
+					SSD1306_DrawString(buffer, 70, 47);
     		        break;
     		    }
     		    else c++;

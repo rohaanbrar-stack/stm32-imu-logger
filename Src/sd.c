@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 volatile uint8_t last_cmd24_response;
+volatile uint8_t write_response;
 
 void SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc) {
 	// arg byte splitting
@@ -36,15 +37,16 @@ uint8_t SD_ReadResponse() {
 uint8_t SD_Init(void) {
 	// Send 10 bytes to wake SD up
 	SPI_CS_High();
-	for(int i = 0; i < 80; i++) {
-		SPI_Transfer(0xFF);
-	}
+	for(int i = 0; i < 80; i++) SPI_Transfer(0xFF);
 
 	// Send CMD0
 	SPI_CS_Low();
 	SD_SendCommand(0, 0x00000000, 0x95);
 	uint8_t response = SD_ReadResponse();
-	if(response != 0x01) return 0x01; // Error handling
+	if(response != 0x01) {
+		SPI_CS_High();
+		return 0x01; // Error handling
+	}
 	SPI_Transfer(0xFF);
 	SPI_CS_High();
 
@@ -103,14 +105,16 @@ uint8_t SD_WriteBlock(uint32_t block, uint8_t *data) {
 	int i;
 	uint8_t response;
 	for(i = 0; i < 100000; i++) {
-		SD_SendCommand(24, block, 0xFF);
+		SD_SendCommand(24, block*512, 0xFF);
 		response = SD_ReadResponse();
 		if(response == 0x00) break;
 	}
 	if(i == 100000) {
 		last_cmd24_response = response;
+		SPI_CS_High();
 		return 0x04; // Error handling
 	}
+	SPI_Transfer(0xFF);
 
 	// Transfer data to block
 	SPI_Transfer(0xFE);
@@ -119,11 +123,17 @@ uint8_t SD_WriteBlock(uint32_t block, uint8_t *data) {
 	SPI_Transfer(0xFF);
 
 	// Check data was accepted
-	response = SD_ReadResponse();
-	if((response & 0x1F) != 0x05) return 0x01; // Error handling
+	write_response = SD_ReadResponse();
+	if((write_response & 0x0E) != 0x04) {
+		SPI_CS_High();
+		return 0x01; // Error handling
+	}
 	for(int i = 0; i < 1000; i++) {
 		if(SPI_Transfer(0xFF) != 0x00) break;
-		else if(i == 999) return 0x01;
+		else if(i == 999) {
+			SPI_CS_High();
+			return 0x02;
+		}
 	}
 	SPI_Transfer(0xFF);
 	SPI_CS_High();
@@ -133,14 +143,20 @@ uint8_t SD_WriteBlock(uint32_t block, uint8_t *data) {
 uint8_t SD_ReadBlock(uint32_t block, uint8_t *data) {
 	// Initialize block address
 	SPI_CS_Low();
-	SD_SendCommand(17, block, 0xFF);
+	SD_SendCommand(17, block*512, 0xFF);
 	uint8_t response = SD_ReadResponse();
-	if(response != 0x00) return 0x01; // Error handling
+	if(response != 0x00) {
+		SPI_CS_High();
+		return 0x01; // Error handling
+	}
 
 	// Transfer data from block
 	for(int i = 0; i < 100000; i++) {
 		if(SPI_Transfer(0xFF) == 0xFE) break;
-		else if(i == 99999) return 0x01;
+		else if(i == 99999) {
+			SPI_CS_High();
+			return 0x02;
+		}
 	}
 	for(int i = 0; i < 512; i++) data[i] = SPI_Transfer(0xFF);
 	SPI_Transfer(0xFF);
