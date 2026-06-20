@@ -22,7 +22,7 @@ void USART_Init(void) {
 }
 
 void USART_WriteByte(uint8_t byte) {
-	USART1_DR = (byte);
-	while(!(USART1_SR & (0x1 << 7)));
+	USART1_DR = (byte); // Write byte
+	while(!(USART1_SR & (0x1 << 7))); // Poll until status register confirms byte sent
 }
 

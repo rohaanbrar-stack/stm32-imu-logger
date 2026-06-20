@@ -7,16 +7,10 @@
 #include "clock.h"
 #include "usart.h"
 #include "ff.h"
-#include "diskio.h"
-#include "ffconf.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
-
-#define RCC_APB2ENR   (*(volatile uint32_t*)0x40021018)
-#define GPIOC_CRH     (*(volatile uint32_t*)0x40011004)
-#define GPIOC_ODR     (*(volatile uint32_t*)0x4001100C)
 
 DWORD get_fattime(void) {
 	return 0;
@@ -24,27 +18,14 @@ DWORD get_fattime(void) {
 
 int main(void)
 {
-    // Enable clock for GPIOC
-    RCC_APB2ENR |= (1 << 4);
-
-    // Configure PC13 as output (push-pull, 2MHz)
-    GPIOC_CRH &= ~(0xF << 20);
-    GPIOC_CRH |=  (0x2 << 20);
-
     clock_Init();
 
     // Declarations
     int16_t ax, ay, az, temp, gx, gy, gz; // Raw data
-    float gx_cal = 0.0; // -- Calibrated data --
-    float gy_cal = 0.0; //
-    float gz_cal = 0.0; // -- Calibrated data --
+    float gyro_cal[3] = {0.0, 0.0, 0.0}; // Calibrated data
     float ax_g, ay_g, az_g, temp_c, gx_dps, gy_dps, gz_dps; // Unit converted data
-    float ax_f = 0.0; // -- Cleaned data --
-    float ay_f = 0.0; //
-    float az_f = 0.0; //
-    float gx_f = 0.0; //
-    float gy_f = 0.0; //
-    float gz_f = 0.0; // -- Cleaned data --
+    float accel_f[3] = {0.0, 0.0, 0.0}; // Cleaned accelerometer data
+    float gyro_f[3] = {0.0, 0.0, 0.0}; // Cleaned gyroscope data
     float roll = 0.0; // Roll
     float pitch = 0.0; // Pitch
     uint8_t first_sample = 1; // Confirms first sample
@@ -78,15 +59,14 @@ int main(void)
     	MPU6050_Read(&ax, &ay, &az, &temp, &gx, &gy, &gz); // Read sensor inputs from MPU6050
 
     	// Sum up values
-    	gx_cal += gx;
-    	gy_cal += gy;
-    	gz_cal += gz;
+    	gyro_cal[0] += gx;
+    	gyro_cal[1] += gy;
+    	gyro_cal[2] += gz;
     }
-
     // Divide values to get offset
-    gx_cal /= 1000.0;
-    gy_cal /= 1000.0;
-    gz_cal /= 1000.0;
+    gyro_cal[0] /= 1000.0;
+    gyro_cal[1] /= 1000.0;
+    gyro_cal[2] /= 1000.0;
 
     last_timestamp = timestamp; // Initialize last timestamp for initial value
 
@@ -102,25 +82,25 @@ int main(void)
     		ax_g = (float)ax / 16384.0;
     		ay_g = (float)ay / 16384.0;
     		az_g = (float)az / 16384.0;
-    		gx_dps = ((float)gx - gx_cal) / 131.0;
-    		gy_dps = ((float)gy - gy_cal) / 131.0;
-    		gz_dps = ((float)gz - gz_cal) / 131.0;
+    		gx_dps = ((float)gx - gyro_cal[0]) / 131.0;
+    		gy_dps = ((float)gy - gyro_cal[1]) / 131.0;
+    		gz_dps = ((float)gz - gyro_cal[2]) / 131.0;
     		temp_c = (float)temp / 340.0 + 36.56;
 
     		// Sensor data cleaning (low-pass filter)
-    		ax_f = 0.1 * ax_g + (1 - 0.1) * ax_f;
-    		ay_f = 0.1 * ay_g + (1 - 0.1) * ay_f;
-    		az_f = 0.1 * az_g + (1 - 0.1) * az_f;
-    		gx_f = 0.1 * gx_dps + (1 - 0.1) * gx_f;
-    		gy_f = 0.1 * gy_dps + (1 - 0.1) * gy_f;
-    		gz_f = 0.1 * gz_dps + (1 - 0.1) * gz_f;
+    		accel_f[0] = 0.1 * ax_g + (1 - 0.1) * accel_f[0];
+    		accel_f[1] = 0.1 * ay_g + (1 - 0.1) * accel_f[1];
+    		accel_f[2] = 0.1 * az_g + (1 - 0.1) * accel_f[2];
+    		gyro_f[0] = 0.1 * gx_dps + (1 - 0.1) * gyro_f[0];
+    		gyro_f[1] = 0.1 * gy_dps + (1 - 0.1) * gyro_f[1];
+    		gyro_f[2] = 0.1 * gz_dps + (1 - 0.1) * gyro_f[2];
 
     		// Roll and pitch calculations
     		if(!first_sample) {
-    			roll += gx_f * dt;
-    			roll = 0.98 * (roll) + 0.02 * (atan2(ay_f, az_f) * 180.0 / M_PI);
-    			pitch += gy_f * dt;
-    			pitch = 0.98 * (pitch) + 0.02 * (atan2(ax_f, az_f) * 180.0 / M_PI);
+    			roll += gyro_f[0] * dt;
+    			roll = 0.98 * (roll) + 0.02 * (atan2(accel_f[1], accel_f[2]) * 180.0 / M_PI);
+    			pitch += gyro_f[1] * dt;
+    			pitch = 0.98 * (pitch) + 0.02 * (atan2(accel_f[0], accel_f[2]) * 180.0 / M_PI);
     		} else first_sample = 0; // Omit first sample (no prev sample for dt)
     		prev_sample_time = sample_time; // Set prev sample for dt
 
@@ -132,16 +112,14 @@ int main(void)
     			last_timestamp = timestamp;
     		}
 
-    		// USART write
+    		// USART / SD write
     		if(sample_count % 5 == 0) {
-    			sprintf(buffer, "%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\r\n", sample_time, ax_f, ay_f, az_f, gx_f, gy_f, gz_f, roll, pitch, temp_c);
+    			sprintf(buffer, "%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\r\n", sample_time, accel_f[0], accel_f[1], accel_f[2], gyro_f[0], gyro_f[1], gyro_f[2], roll, pitch, temp_c);
     			for(int i = 0; buffer[i] != '\0'; i++) {
-    				USART_WriteByte(buffer[i]);
+    				USART_WriteByte(buffer[i]); // USART write
     			}
     			f_write(&fp, buffer, strlen(buffer), &bw); // FatFS SD write
     		}
-
-
 
     		if(sample_count % 50 == 0) {
     			f_sync(&fp); // Flush FatFS write data

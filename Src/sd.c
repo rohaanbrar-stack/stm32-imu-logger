@@ -7,17 +7,17 @@ volatile uint8_t last_cmd24_response;
 volatile uint8_t write_response;
 
 void SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc) {
-	// arg byte splitting
+	// Arg byte splitting
 	uint8_t byte_1 = (arg >> 24) & 0xFF;
 	uint8_t byte_2 = (arg >> 16) & 0xFF;
 	uint8_t byte_3 = (arg >> 8) & 0xFF;
 	uint8_t byte_4 = arg & 0xFF;
 
 	SPI_Transfer(0x40 | cmd); // Send command line
-	SPI_Transfer(byte_1); // -- Send command arg --
+	SPI_Transfer(byte_1); // Send command arg
 	SPI_Transfer(byte_2); //
 	SPI_Transfer(byte_3); //
-	SPI_Transfer(byte_4); // -- Send command arg --
+	SPI_Transfer(byte_4); //
 	SPI_Transfer(crc); // Send CRC
 	for(int i = 0; i < 100000; i++) if(!(SPI1_SR & (1 << 7))) break; // Waits until status bit is set by hardware
 }
@@ -45,7 +45,7 @@ uint8_t SD_Init(void) {
 	uint8_t response = SD_ReadResponse();
 	if(response != 0x01) {
 		SPI_CS_High();
-		return 0x01; // Error handling
+		return 0x01; // CMD0 failed, card not responding in SPI mode
 	}
 	SPI_Transfer(0xFF);
 	SPI_CS_High();
@@ -54,10 +54,13 @@ uint8_t SD_Init(void) {
 	SPI_CS_Low();
 	SD_SendCommand(8, 0x000001AA, 0x87);
 	response = SD_ReadResponse();
+
+	// CMD8 not supported, use legacy init
 	if(response != 0x01) {
 		SPI_Transfer(0xFF);
 		SPI_CS_High();
 
+		// Send CMD55 and ACMD41 until response is 0x00
 		for(int i = 0; i < 100000; i++) {
 			SPI_CS_Low();
 			SD_SendCommand(55, 0x00000000, 0xFF);
@@ -72,7 +75,7 @@ uint8_t SD_Init(void) {
 			SPI_Transfer(0xFF);
 			if(response == 0x00) return 0x00;
 		}
-		return 0x03;
+		return 0x03; // SDSC v1 ACMD41 timed out, card stuck in idle
 	}
 	(void)SD_ReadResponse();
 	(void)SD_ReadResponse();
@@ -96,7 +99,7 @@ uint8_t SD_Init(void) {
 		SPI_Transfer(0xFF);
 		if(response == 0x00) return 0x00;
 	}
-	return 0x04; // Timeout
+	return 0x04; // SDHC ACMD41 timed out, card stuck in idle
 }
 
 uint8_t SD_WriteBlock(uint32_t block, uint8_t *data) {
@@ -112,7 +115,7 @@ uint8_t SD_WriteBlock(uint32_t block, uint8_t *data) {
 	if(i == 100000) {
 		last_cmd24_response = response;
 		SPI_CS_High();
-		return 0x04; // Error handling
+		return 0x04; // CMD24 never accepted, card not ready to write
 	}
 	SPI_Transfer(0xFF);
 
@@ -126,13 +129,13 @@ uint8_t SD_WriteBlock(uint32_t block, uint8_t *data) {
 	write_response = SD_ReadResponse();
 	if((write_response & 0x0E) != 0x04) {
 		SPI_CS_High();
-		return 0x01; // Error handling
+		return 0x01; // Data token rejected, write not accepted by card
 	}
 	for(int i = 0; i < 1000; i++) {
 		if(SPI_Transfer(0xFF) != 0x00) break;
 		else if(i == 999) {
 			SPI_CS_High();
-			return 0x02;
+			return 0x02; // Card busy timeout after write, never released MISO
 		}
 	}
 	SPI_Transfer(0xFF);
@@ -147,7 +150,7 @@ uint8_t SD_ReadBlock(uint32_t block, uint8_t *data) {
 	uint8_t response = SD_ReadResponse();
 	if(response != 0x00) {
 		SPI_CS_High();
-		return 0x01; // Error handling
+		return 0x01; // CMD17 failed, card rejected read command
 	}
 
 	// Transfer data from block
@@ -155,7 +158,7 @@ uint8_t SD_ReadBlock(uint32_t block, uint8_t *data) {
 		if(SPI_Transfer(0xFF) == 0xFE) break;
 		else if(i == 99999) {
 			SPI_CS_High();
-			return 0x02;
+			return 0x02; // Data token never received, card didn't send data
 		}
 	}
 	for(int i = 0; i < 512; i++) data[i] = SPI_Transfer(0xFF);

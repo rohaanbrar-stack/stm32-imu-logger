@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 
+// ASCII reference table
 static const uint8_t FONTS[][5] = {
     {0x00,0x00,0x00,0x00,0x00},	// 0x20
     {0x00,0x00,0x2F,0x00,0x00},	// 0x21
@@ -102,7 +103,7 @@ static const uint8_t FONTS[][5] = {
     {0x00,0x3C,0x22,0x3C,0x00},	// 0x7F
 };
 
-uint8_t framebuffer[1024];
+uint8_t framebuffer[1024]; // Pixel storage before screen refresh
 
 void SSD1306_SendCommand(uint8_t cmd) {
 	I2C_Start();
@@ -201,11 +202,13 @@ void SSD1306_Clear() {
 }
 
 void SSD1306_DrawChar(char c, uint8_t x, uint8_t y) {
-	const uint8_t *character = FONTS[c - 0x20];
+	const uint8_t *character = FONTS[c - 0x20]; // Set ASCII binary for character c input
+
+	// Loop over each ASCII binary value
 	for(int i = 0; i < 5; i++) {
 		for(int j = 0; j < 8; j++) {
 			if(0 < (character[i] & (0x1 << j))) {
-				SSD1306_SetPixel(x + i, y + j);
+				SSD1306_SetPixel(x + i, y + j); // Set pixel using simple bitmask
 			}
 		}
 	}
@@ -213,8 +216,8 @@ void SSD1306_DrawChar(char c, uint8_t x, uint8_t y) {
 
 void SSD1306_DrawString(char *str, uint8_t x, uint8_t y) {
 	while(*str != '\0') {
-		SSD1306_DrawChar(*str, x, y);
-		x += 6;
-		str++;
+		SSD1306_DrawChar(*str, x, y); // Draw character of string
+		x += 6; // Increase x pixel offset by a character
+		str++; // Advance in string buffer
 	}
 }

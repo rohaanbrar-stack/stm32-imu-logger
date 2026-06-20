@@ -17,7 +17,7 @@ void TIM2_Init(void) {
 	TIM2_PSC &= ~(0xFFFF); // Clear prescaler
 	TIM2_PSC |= (0x57E3); // Set prescaler to 22499
 	TIM2_ARR &= ~(0xFFFF); // Clear auto reload
-	TIM2_ARR |= (0xF); // Set auto reload to 15 (sets clock rate to 100 Hz)
+	TIM2_ARR |= (0xF); // Set auto reload to 15 (sets clock rate to 100 Hz )
 	TIM2_DIER |= (0x1); // Enable update interrupt
 	NVIC_ISER0 |= (0x1 << 28); // Enable IRQ28 (internal interrupt)
 	TIM2_CR1 |= (0x1); // Enable counter
