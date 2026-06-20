@@ -6,13 +6,21 @@
 #include "timer.h"
 #include "clock.h"
 #include "usart.h"
+#include "ff.h"
+#include "diskio.h"
+#include "ffconf.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 
 #define RCC_APB2ENR   (*(volatile uint32_t*)0x40021018)
 #define GPIOC_CRH     (*(volatile uint32_t*)0x40011004)
 #define GPIOC_ODR     (*(volatile uint32_t*)0x4001100C)
+
+DWORD get_fattime(void) {
+	return 0;
+}
 
 int main(void)
 {
@@ -44,82 +52,25 @@ int main(void)
     uint32_t last_timestamp; // Last timestamp for Hz update
     float dt; // Delta for roll/pitch update
     float hz = 0.0; // Hz refresh rate
-    char buffer[80]; // String array memory
-    uint8_t data[512]; // SD data block memory
-    uint8_t data_read[512]; // SD data block read memory
-    uint8_t sd_init_conf; // SD card confirmation
-    uint8_t sd_write_conf; // SD card confirmation
-    uint8_t sd_read_conf; // SD card confirmation
+    char buffer[100]; // String array memory
     uint8_t sample_count = 0; // Clock IRQ flag
     uint32_t sample_time; // Timestamp
-    int pf = 0; // SD test pass/fail
+    FATFS fs; // FATFS object for file mount
+    FIL fp; // File pointer for FatFS file open
+    UINT bw; // Number of bytes sent through FatFS write
 
     // Initializations
     TIM2_Init();
     SPI_Init();
     for(int i = 0; i < 100000; i++);
-    sd_init_conf = SD_Init();
+    SD_Init();
+    f_mount(&fs, "0:", 1);
+    f_open(&fp, "0:log.csv", FA_CREATE_ALWAYS | FA_WRITE);
     I2C_Init();
     USART_Init();
     MPU6050_Init();
     SSD1306_Init();
     SSD1306_Clear();
-    SSD1306_Refresh();
-
-    // Test SD card
-    SSD1306_Clear();
-    SD_ReadBlock(195312, data_read);
-    sprintf(buffer, "read_pre: %x", data_read[0]);
-    SSD1306_DrawString(buffer, 2, 56);
-    if(sd_init_conf == 0x00) {
-    	uint32_t i;
-    	int c = 0;
-    	int d = 0;
-    	uint8_t failed = 0;
-    	for(i = 195312; i < 1953125 ; i = i + 195312) {
-    		for(int j = 0; j < 512; j++) {
-    			data[j] = (i + j) % 256;
-    		}
-    		sd_write_conf = SD_WriteBlock(i, data);
-    		for(int l = 0; l < 10; l++) SPI_Transfer(0xFF);
-    		sd_read_conf = SD_ReadBlock(i, data_read);
-    		SPI_Transfer(0xFF);
-    		for(int k = 0; k < 512; k++) {
-    		    if(data_read[k] != data[k]) {
-    		    	pf = 1;
-    		    	SSD1306_DrawString("FAIL", 102, 2);
-    		       	sprintf(buffer, "i: %lx", i);
-    		       	SSD1306_DrawString(buffer, 2, 2);
-    		       	if(sd_write_conf == 0x04) SSD1306_DrawString("LOOP 1", 2, 11);
-    		       	if(sd_write_conf == 0x01) SSD1306_DrawString("LOOP 2", 2, 11);
-    		       	if(sd_write_conf == 0x02) SSD1306_DrawString("LOOP 3", 2, 11);
-    		       	if(sd_read_conf == 0x01) SSD1306_DrawString("READ 1", 64, 11);
-    		       	if(sd_read_conf == 0x02) SSD1306_DrawString("READ 2", 64, 11);
-    		       	failed = 1;
-    		       	sprintf(buffer, "k: %x", k);
-    		       	SSD1306_DrawString(buffer, 2, 20);
-    		       	sprintf(buffer, "data: %x", data[k]);
-    		       	SSD1306_DrawString(buffer, 2, 29);
-    		       	sprintf(buffer, "data_read: %x", data_read[k]);
-    		       	SSD1306_DrawString(buffer, 2, 38);
-					sprintf(buffer, "cmd24: %x", last_cmd24_response);
-					SSD1306_DrawString(buffer, 2, 47);
-					sprintf(buffer, "W_R: %x", write_response);
-					SSD1306_DrawString(buffer, 70, 47);
-    		        break;
-    		    }
-    		    else c++;
-    	    }
-    		if(c == 512) { d++; c = 0; }
-    		if(failed == 1) break;
-    		SPI_Transfer(0xFF);
-    	}
-        if(d == 10) SSD1306_DrawString("PASS", 102, 2);
-    }
-    else if(sd_init_conf == 0x01) SSD1306_DrawString("MEGAFAIL 1", 2, 2);
-    else if(sd_init_conf == 0x02) SSD1306_DrawString("MEGAFAIL 2", 2, 2);
-    else if(sd_init_conf == 0x03) SSD1306_DrawString("MEGAFAIL 3V1", 2, 2);
-    else if(sd_init_conf == 0x04) SSD1306_DrawString("MEGAFAIL 3V2", 2, 2);
     SSD1306_Refresh();
 
     // Gyro drift calibration
@@ -131,6 +82,7 @@ int main(void)
     	gy_cal += gy;
     	gz_cal += gz;
     }
+
     // Divide values to get offset
     gx_cal /= 1000.0;
     gy_cal /= 1000.0;
@@ -182,13 +134,17 @@ int main(void)
 
     		// USART write
     		if(sample_count % 5 == 0) {
-    			sprintf(buffer, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\r\n", ax_f, ay_f, az_f, gx_f, gy_f, gz_f, roll, pitch, temp_c);
+    			sprintf(buffer, "%lu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\r\n", sample_time, ax_f, ay_f, az_f, gx_f, gy_f, gz_f, roll, pitch, temp_c);
     			for(int i = 0; buffer[i] != '\0'; i++) {
     				USART_WriteByte(buffer[i]);
     			}
+    			f_write(&fp, buffer, strlen(buffer), &bw); // FatFS SD write
     		}
 
+
+
     		if(sample_count % 50 == 0) {
+    			f_sync(&fp); // Flush FatFS write data
     			SSD1306_Clear(); // Clear SSD1306 every 50 clock ticks
 
     			// Store and set sensor values on SSD1306
@@ -201,8 +157,6 @@ int main(void)
     			sprintf(buffer, "Temp: %.3f C", temp_c);
     			SSD1306_DrawString(buffer, 2, 29);
 
-    			if(pf == 1) SSD1306_DrawString("FAIL", 102, 54);
-    			else SSD1306_DrawString("PASS", 102, 54);
     			SSD1306_Refresh(); // Refresh screen to display string
     		}
     	}

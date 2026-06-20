@@ -6,7 +6,7 @@ A fully bare-metal embedded data acquisition system built on an STM32 microcontr
 
 ## Overview
 
-This system reads motion data from an **MPU6050 IMU** at a fixed 100Hz sample rate, computes **roll and pitch orientation** using a complementary filter, displays live values on an **SSD1306 OLED**, and logs sensor data to a **microSD card via SPI**.
+This system reads motion data from an **MPU6050 IMU** at a fixed 100Hz sample rate, computes **roll and pitch orientation** using a complementary filter, displays live values on an **SSD1306 OLED**, streams sensor data over **UART** for PC-side analysis, and logs structured timestamped records to a **microSD card via SPI**.
 
 It is designed as a learning and development platform for:
 - bare-metal STM32 programming
@@ -37,32 +37,25 @@ It is designed as a learning and development platform for:
 - **Roll and pitch estimation** via complementary filter (accelerometer + gyroscope fusion)
 - **Live measured sample rate (Hz)** computed from timer ticks
 - SSD1306 OLED driver for live telemetry display (roll, pitch, temperature, measured Hz)
-- SD card driver (SDSC/SDHC init, block read/write, retry logic) — finalizing hardware integration
+- SD card driver (SDSC/SDHC init, block read/write, retry logic) with FatFS integration for structured CSV logging
+- UART streaming for live sensor data output and PC-side characterization
+- Python analysis pipeline for CSV import, noise/drift plots, and orientation visualization
 
 ---
 
-## Current Status
+## Completed
 
-### Completed
 - Clock configuration (36MHz SYSCLK, verified)
 - I2C and SPI communication drivers
 - MPU6050 raw data acquisition, gyro bias calibration, and low-pass filtering
 - Timer-driven 100Hz fixed-rate sampling (TIM2, verified via LED toggle)
 - Roll and pitch orientation estimation via complementary filter
 - OLED live display of roll, pitch, temperature, and measured sample rate
-- SD card driver logic (SDSC/SDHC fallback, CMD24 retry, extended timeouts) — logic verified correct, but...
-
-### In Progress
-- SD card hardware integration with an upgraded SPI module (Adafruit ADA254)
-- UART output for live data streaming and PC-side characterization (in progress, USB-TTL adapter incoming)
-
-### Planned
-- UART-based live data streaming for sensor characterization (noise/drift analysis)
-- Re-integrate SD logging once hardware reliability is confirmed with new module
-- Structured timestamped log format (timestamp + 7 raw sensor values + roll + pitch)
-- PC-side data export/analysis pipeline (CSV + Python plotting)
+- SD card driver (SDSC/SDHC detection, CMD24 retry, extended timeouts) — verified working with Adafruit ADA254
+- FatFS integration — structured timestamped CSV log files
+- UART-based live data streaming and sensor characterization
+- PC-side data export and analysis pipeline (CSV + Python plotting)
 - Codebase cleanup (structs, naming conventions, error handling, documentation)
-- Final GitHub portfolio polish (diagrams, photos/videos)
 
 ---
 
@@ -81,11 +74,11 @@ It is designed as a learning and development platform for:
 
 1. ~~Implement timer-driven fixed-rate sampling~~ — **complete**
 2. ~~Add orientation estimation (roll/pitch) via complementary filter~~ — **complete**
-3. UART-based live data streaming and sensor characterization (noise/drift)
-4. Finalize SD logging with structured, timestamped records
-5. PC-side dataset export and visualization (CSV + Python)
-6. Codebase cleanup and documentation pass
-7. Finalize GitHub portfolio polish
+3. ~~UART-based live data streaming and sensor characterization (noise/drift)~~ — **complete**
+4. ~~Finalize SD logging with structured, timestamped records~~ — **complete**
+5. ~~PC-side dataset export and visualization (CSV + Python)~~ — **complete**
+6. ~~Codebase cleanup and documentation pass~~ — **complete**
+7. ~~Finalize GitHub portfolio polish~~ — **complete**
 
 ---
 
